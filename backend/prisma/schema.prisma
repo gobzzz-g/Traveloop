@@ -1,0 +1,367 @@
+// Traveloop - Complete Prisma Schema
+// PostgreSQL Database
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TravelStyle {
+  LUXURY
+  BACKPACKING
+  ADVENTURE
+  FAMILY
+  SOLO
+  ROMANTIC
+  BUSINESS
+  GROUP
+}
+
+enum TripPrivacy {
+  PRIVATE
+  PUBLIC
+  SHARED
+}
+
+enum TripStatus {
+  PLANNING
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum ActivityCategory {
+  ADVENTURE
+  FOOD
+  HISTORICAL
+  SHOPPING
+  NIGHTLIFE
+  BEACHES
+  HIKING
+  CULTURAL
+  TRANSPORT
+  ACCOMMODATION
+  OTHER
+}
+
+enum PackingCategory {
+  CLOTHES
+  ELECTRONICS
+  DOCUMENTS
+  MEDICINES
+  ACCESSORIES
+  TOILETRIES
+  OTHER
+}
+
+enum NoteMood {
+  HAPPY
+  EXCITED
+  NEUTRAL
+  TIRED
+  ADVENTUROUS
+  RELAXED
+  OTHER
+}
+
+// ============================================================
+// USER MODEL
+// ============================================================
+
+model User {
+  id               String   @id @default(cuid())
+  name             String
+  email            String   @unique
+  password         String?
+  avatar           String?
+  role             Role     @default(USER)
+  googleId         String?  @unique
+  isEmailVerified  Boolean  @default(false)
+  emailVerifyToken String?
+  resetToken       String?
+  resetTokenExpiry DateTime?
+  refreshToken     String?
+  language         String   @default("en")
+  timezone         String   @default("UTC")
+  travelScore      Int      @default(0)
+  tripsCount       Int      @default(0)
+  countriesCount   Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  trips       Trip[]
+  notes       Note[]
+  savedTrips  SavedTrip[]
+  badges      UserBadge[]
+
+  @@map("users")
+}
+
+// ============================================================
+// TRIP MODEL
+// ============================================================
+
+model Trip {
+  id           String      @id @default(cuid())
+  userId       String
+  title        String
+  description  String?
+  coverImage   String?
+  startDate    DateTime
+  endDate      DateTime
+  budget       Float       @default(0)
+  currency     String      @default("USD")
+  travelStyle  TravelStyle @default(SOLO)
+  privacy      TripPrivacy @default(PRIVATE)
+  status       TripStatus  @default(PLANNING)
+  travelersCount Int       @default(1)
+  isArchived   Boolean     @default(false)
+  tags         String[]    @default([])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destinations Destination[]
+  budget_items Budget?
+  packingItems PackingItem[]
+  notes        Note[]
+  sharedTrip   SharedTrip?
+  savedBy      SavedTrip[]
+
+  @@map("trips")
+}
+
+// ============================================================
+// DESTINATION MODEL
+// ============================================================
+
+model Destination {
+  id            String   @id @default(cuid())
+  tripId        String
+  city          String
+  country       String
+  countryCode   String?
+  lat           Float?
+  lng           Float?
+  arrivalDate   DateTime
+  departureDate DateTime
+  order         Int      @default(0)
+  notes         String?
+  imageUrl      String?
+  timezone      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  trip       Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  activities Activity[]
+
+  @@map("destinations")
+}
+
+// ============================================================
+// ACTIVITY MODEL
+// ============================================================
+
+model Activity {
+  id            String           @id @default(cuid())
+  destinationId String
+  title         String
+  description   String?
+  category      ActivityCategory @default(OTHER)
+  cost          Float            @default(0)
+  currency      String           @default("USD")
+  duration      Int              @default(60) // minutes
+  startTime     String?          // HH:MM format
+  date          DateTime?
+  address       String?
+  lat           Float?
+  lng           Float?
+  photoUrl      String?
+  rating        Float?
+  notes         String?
+  bookingUrl    String?
+  order         Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  destination Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@map("activities")
+}
+
+// ============================================================
+// BUDGET MODEL
+// ============================================================
+
+model Budget {
+  id          String   @id @default(cuid())
+  tripId      String   @unique
+  flights     Float    @default(0)
+  hotels      Float    @default(0)
+  food        Float    @default(0)
+  activities  Float    @default(0)
+  transport   Float    @default(0)
+  shopping    Float    @default(0)
+  emergency   Float    @default(0)
+  misc        Float    @default(0)
+  currency    String   @default("USD")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("budgets")
+}
+
+// ============================================================
+// PACKING ITEM MODEL
+// ============================================================
+
+model PackingItem {
+  id        String          @id @default(cuid())
+  tripId    String
+  title     String
+  category  PackingCategory @default(OTHER)
+  packed    Boolean         @default(false)
+  quantity  Int             @default(1)
+  notes     String?
+  order     Int             @default(0)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  // Relations
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("packing_items")
+}
+
+// ============================================================
+// NOTE / JOURNAL MODEL
+// ============================================================
+
+model Note {
+  id        String    @id @default(cuid())
+  userId    String
+  tripId    String?
+  title     String?
+  content   String
+  mood      NoteMood  @default(NEUTRAL)
+  photos    String[]  @default([])
+  tags      String[]  @default([])
+  date      DateTime  @default(now())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip? @relation(fields: [tripId], references: [id], onDelete: SetNull)
+
+  @@map("notes")
+}
+
+// ============================================================
+// SHARED TRIP MODEL
+// ============================================================
+
+model SharedTrip {
+  id          String   @id @default(cuid())
+  tripId      String   @unique
+  publicSlug  String   @unique
+  views       Int      @default(0)
+  likes       Int      @default(0)
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@map("shared_trips")
+}
+
+// ============================================================
+// SAVED TRIP MODEL (Bookmarked public trips)
+// ============================================================
+
+model SavedTrip {
+  id        String   @id @default(cuid())
+  userId    String
+  tripId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tripId])
+  @@map("saved_trips")
+}
+
+// ============================================================
+// BADGE MODEL
+// ============================================================
+
+model Badge {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String
+  icon        String
+  condition   String
+  createdAt   DateTime    @default(now())
+
+  // Relations
+  users UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+// ============================================================
+// ANALYTICS MODEL
+// ============================================================
+
+model Analytics {
+  id        String   @id @default(cuid())
+  metric    String
+  value     Float
+  dimension String?
+  date      DateTime @default(now())
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@map("analytics")
+}
